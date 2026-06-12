@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe Arena</title>
+    <style>
+        /* All styles are self-contained here so it doesn't need style.css to work */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #050508;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Moving arcade grid background built directly in */
+        .grid-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(69, 243, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(69, 243, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: 1;
+            animation: moveGrid 20s linear infinite;
+        }
+
+        @keyframes moveGrid {
+            from { background-position: 0 0; }
+            to { background-position: 0 1000px; }
+        }
+
+        .game-wrapper {
+            position: relative;
+            z-index: 3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .status-box {
+            font-size: 32px;
+            font-weight: 900;
+            margin-bottom: 30px;
+            color: #45f3ff;
+            text-shadow: 0 0 15px #45f3ff;
+            letter-spacing: 2px;
+        }
+
+        /* 3x3 Arena Board */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 110px);
+            grid-template-rows: repeat(3, 110px);
+            gap: 15px;
+            background-color: rgba(20, 24, 33, 0.9);
+            padding: 20px;
+            border-radius: 16px;
+            border: 2px solid rgba(69, 243, 255, 0.3);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Big Clicking Squares */
+        .cell {
+            background-color: #050508;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 54px;
+            font-weight: 900;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+
+        .cell:hover {
+            background-color: rgba(69, 243, 255, 0.1);
+            border-color: #45f3ff;
+            box-shadow: 0 0 15px rgba(69, 243, 255, 0.4);
+        }
+
+        .controls {
+            margin-top: 35px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .reset-btn {
+            background: linear-gradient(90deg, #00f2fe 0%, #45f3ff 100%);
+            color: #0b0c10;
+            border: none;
+            padding: 14px 40px;
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(69, 243, 255, 0.4);
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            box-shadow: 0 8px 30px rgba(69, 243, 255, 0.8);
+            transform: scale(1.05);
+        }
+
+        .back-btn {
+            color: #a9b7c6;
+            text-decoration: none;
+            font-size: 14px;
+            letter-spacing: 1px;
+            transition: color 0.2s;
+        }
+
+        .back-btn:hover {
+            color: #45f3ff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="grid-bg"></div>
+
+    <div class="game-wrapper">
+        
+        <div class="status-box" id="statusText">YOUR TURN (X)</div>
+        
+        <div class="board">
+            <div class="cell" onclick="playTurn(this, 0)"></div>
+            <div class="cell" onclick="playTurn(this, 1)"></div>
+            <div class="cell" onclick="playTurn(this, 2)"></div>
+            <div class="cell" onclick="playTurn(this, 3)"></div>
+            <div class="cell" onclick="playTurn(this, 4)"></div>
+            <div class="cell" onclick="playTurn(this, 5)"></div>
+            <div class="cell" onclick="playTurn(this, 6)"></div>
+            <div class="cell" onclick="playTurn(this, 7)"></div>
+            <div class="cell" onclick="playTurn(this, 8)"></div>
+        </div>
+
+        <div class="controls">
+            <button class="reset-btn" onclick="resetArena()">Reset Arena</button>
+            <a href="index.html" class="back-btn">← RETURN TO HUB</a>
+        </div>
+
+    </div>
+
+    <script>
+        const statusText = document.getElementById('statusText');
+        let boardState = ["", "", "", "", "", "", "", "", ""];
+        let currentPlayer = "X";
+        let isGameActive = true;
+
+        const winningCombinations = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        function playTurn(cell, index) {
+            // Stop if clicked square is full or game ended
+            if (boardState[index] !== "" || !isGameActive) {
+                return;
+            }
+
+            // Lock the choice in memory
+            boardState[index] = currentPlayer;
+            
+            // Force the text directly onto the screen immediately
+            cell.innerHTML = currentPlayer;
+            
+            // Color customizer
+            if (currentPlayer === "X") {
+                cell.style.color = "#45f3ff";
+                cell.style.textShadow = "0 0 20px #45f3ff";
+            } else {
+                cell.style.color = "#ff4545";
+                cell.style.textShadow = "0 0 20px #ff4545";
+            }
+
+            checkMatchResult();
+        }
+
+        function checkMatchResult() {
+            let won = false;
+
+            for (let i = 0; i < winningCombinations.length; i++) {
+                const combo = winningCombinations[i];
+                if (boardState[combo[0]] === "" || boardState[combo[1]] === "" || boardState[combo[2]] === "") {
+                    continue;
+                }
+                if (boardState[combo[0]] === boardState[combo[1]] && boardState[combo[1]] === boardState[combo[2]]) {
+                    won = true;
+                    break;
+                }
+            }
+
+            if (won) {
+                statusText.innerHTML = `🎉 PLAYER ${currentPlayer} WINS!`;
+                statusText.style.color = "#39ff14";
+                statusText.style.textShadow = "0 0 25px #39ff14";
+                isGameActive = false;
+                return;
+            }
+
+            if (!boardState.includes("")) {
+                statusText.innerHTML = "🤝 IT'S A DRAW!";
+                statusText.style.color = "#ffffff";
+                statusText.style.textShadow = "0 0 10px #ffffff";
+                isGameActive = false;
+                return;
+            }
+
+            // Switch active sign
+            currentPlayer = (currentPlayer === "X") ? "O" : "X";
+            statusText.innerHTML = `PLAYER ${currentPlayer}'S TURN`;
+        }
+
+        function resetArena() {
+            boardState = ["", "", "", "", "", "", "", "", ""];
+            currentPlayer = "X";
+            isGameActive = true;
+            statusText.innerHTML = "YOUR TURN (X)";
+            statusText.style.color = "#45f3ff";
+            statusText.style.textShadow = "0 0 15px #45f3ff";
+            
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.innerHTML = "";
+                cell.style.textShadow = "none";
+            });
+        }
+    </script>
+</body>
+</html>

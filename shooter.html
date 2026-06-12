@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galactic Strike Arena</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #03030c;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 440px;
+            margin-bottom: 12px;
+            padding: 0 4px;
+        }
+
+        .hud-metric {
+            font-size: 18px;
+            font-weight: 800;
+            color: #00f2fe;
+            text-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        canvas {
+            background-color: #050512;
+            border: 3px solid #45f3ff;
+            border-radius: 16px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(69, 243, 255, 0.15);
+            display: block;
+        }
+
+        .control-zone {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #00f2fe 0%, #45f3ff 100%);
+            color: #05060f;
+            border: none;
+            padding: 12px 38px;
+            font-size: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(69, 243, 255, 0.3);
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.03);
+            box-shadow: 0 6px 22px rgba(69, 243, 255, 0.6);
+        }
+
+        .btn-secondary {
+            color: #8394a6;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .btn-secondary:hover {
+            color: #45f3ff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        
+        <div class="hud">
+            <div class="hud-metric" id="scoreValue">Score: 0</div>
+            <div class="hud-metric" id="shieldValue">Shields: 3</div>
+        </div>
+
+        <canvas id="starfighterCanvas" width="440" height="520"></canvas>
+
+        <div class="control-zone">
+            <button class="btn-primary" id="deployBtn" onclick="initiateLaunchSequence()">Deploy Fighter</button>
+            <a href="index.html" class="btn-secondary">← Return to Hub</a>
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById("starfighterCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreValue = document.getElementById("scoreValue");
+        const shieldValue = document.getElementById("shieldValue");
+        const deployBtn = document.getElementById("deployBtn");
+
+        // Game State Variables
+        let frameEngineId = null;
+        let gameScore = 0;
+        let userShields = 3;
+        let running = false;
+
+        // Space Game Object Containers
+        let fighterShip = { x: 200, y: 450, width: 40, height: 32, velocity: 6.5 };
+        let laserProjectiles = [];
+        let enemySquadron = [];
+        let scrollingStars = [];
+        let blastParticles = [];
+
+        // Controller Dictionary Map
+        let activeKeys = {};
+
+        // Intercept and handle browser shortcuts
+        window.addEventListener("keydown", (event) => { 
+            if (event.keyCode === 32) {
+                event.preventDefault();
+            }
+            activeKeys[event.keyCode] = true; 
+        });
+
+        window.addEventListener("keyup", (event) => { 
+            if (event.keyCode === 32) {
+                event.preventDefault();
+            }
+            activeKeys[event.keyCode] = false; 
+        });
+
+        // Initialize background ambiance matrix immediately
+        generateStarscapeBackground();
+        renderRestingFrame();
+
+        function generateStarscapeBackground() {
+            scrollingStars = [];
+            for (let i = 0; i < 50; i++) {
+                scrollingStars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 1.8,
+                    speedY: Math.random() * 1.2 + 0.4
+                });
+            }
+        }
+
+        function renderRestingFrame() {
+            ctx.fillStyle = "#050512";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw static stars background
+            ctx.fillStyle = "#ffffff";
+            scrollingStars.forEach(star => {
+                ctx.fillRect(star.x, star.y, star.radius, star.radius);
+            });
+
+            // Draw player ship resting layout placeholder
+            drawPlayerVectorShip(fighterShip.x, fighterShip.y);
+        }
+
+        function initiateLaunchSequence() {
+            if (frameEngineId) cancelAnimationFrame(frameEngineId);
+            
+            // Explicitly force focus off the deploy button to stop spacebar double-triggering
+            deployBtn.blur();
+            
+            gameScore = 0;
+            userShields = 3;
+            laserProjectiles = [];
+            enemySquadron = [];
+            blastParticles = [];
+            fighterShip.x = canvas.width / 2 - fighterShip.width / 2;
+            
+            scoreValue.innerHTML = "Score: " + gameScore;
+            shieldValue.innerHTML = "Shields: " + userShields;
+            
+            running = true;
+            populateAlienSquadron();
+            executeCoreTickCycle();
+        }
+
+        function populateAlienSquadron() {
+            const rowsCount = 4;
+            const columnsCount = 6;
+            const alienWidth = 34;
+            const alienHeight = 24;
+            
+            enemySquadron = []; // Clear array safely
+            for (let r = 0; r < rowsCount; r++) {
+                for (let c = 0; c < columnsCount; c++) {
+                    enemySquadron.push({
+                        x: c * (alienWidth + 24) + 50,
+                        y: r * (alienHeight + 20) + 40,
+                        width: alienWidth,
+                        height: alienHeight,
+                        movingDirection: 1,
+                        currentBaseSpeed: 1.2 + (gameScore * 0.002)
+                    });
+                }
+            }
+        }
+
+        function executeCoreTickCycle() {
+            if (!running) return;
+
+            readControllerInputs();
+            processPhysicsUpdates();
+            renderActiveCanvasElements();
+
+            frameEngineId = requestAnimationFrame(executeCoreTickCycle);
+        }
+
+        function readControllerInputs() {
+            // Left Movement: Left Arrow or A
+            if (activeKeys[37] || activeKeys[65]) {
+                if (fighterShip.x > 0) fighterShip.x -= fighterShip.velocity;
+            }
+            // Right Movement: Right Arrow or D
+            if (activeKeys[39] || activeKeys[68]) {
+                if (fighterShip.x < canvas.width - fighterShip.width) fighterShip.x += fighterShip.velocity;
+            }
+            // Fire Weapon Trigger: Spacebar
+            if (activeKeys[32]) {
+                deployPlasmaBolt();
+                activeKeys[32] = false; // Block auto-flooding arrays
+            }
+        }
+
+        function deployPlasmaBolt() {
+            laserProjectiles.push({
+                x: fighterShip.x + fighterShip.width / 2 - 2,
+                y: fighterShip.y,
+                width: 4,
+                height: 14,
+                projectileSpeed: 8.5
+            });
+        }
+
+        function spawnDetonationExplosion(x, y, colorCode) {
+            for (let i = 0; i < 10; i++) {
+                blastParticles.push({
+                    x: x,
+                    y: y,
+                    velocityX: (Math.random() - 0.5) * 5,
+                    velocityY: (Math.random() - 0.5) * 5,
+                    radius: Math.random() * 2.5 + 1,
+                    transparency: 1,
+                    fadeFactor: Math.random() * 0.03 + 0.02,
+                    color: colorCode
+                });
+            }
+        }
+
+        function processPhysicsUpdates() {
+            // Star movement looping calculations
+            scrollingStars.forEach(star => {
+                star.y += star.speedY;
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+            });
+
+            // Explosion particles tracking updates
+            blastParticles.forEach((particle, pIdx) => {
+                particle.x += particle.velocityX;
+                particle.y += particle.velocityY;
+                particle.transparency -= particle.fadeFactor;
+                if (particle.transparency <= 0) blastParticles.splice(pIdx, 1);
+            });
+
+            // Plasma project arrays shifting logic
+            laserProjectiles.forEach((laser, lIdx) => {
+                laser.y -= laser.projectileSpeed;
+                if (laser.y < 0) laserProjectiles.splice(lIdx, 1);
+            });
+
+            // Invaders boundary and tracking updates
+            let changeSquadronDirection = false;
+            enemySquadron.forEach(enemy => {
+                enemy.x += enemy.currentBaseSpeed * enemy.movingDirection;
+                if (enemy.x <= 10 || enemy.x >= canvas.width - enemy.width - 10) {
+                    changeSquadronDirection = true;
+                }
+
+                // Crash conditions monitoring straight into user hull box bounds
+                if (evaluateBoundingIntersections(enemy, fighterShip)) {
+                    userShields--;
+                    shieldValue.innerHTML = "Shields: " + userShields;
+                    spawnDetonationExplosion(fighterShip.x + fighterShip.width/2, fighterShip.y + fighterShip.height/2, "#45f3ff");
+                    enemySquadron.splice(enemySquadron.indexOf(enemy), 1);
+                    
+                    if (userShields <= 0) runTerminationSequence();
+                }
+            });
+
+            if (changeSquadronDirection) {
+                enemySquadron.forEach(enemy => {
+                    enemy.movingDirection *= -1;
+                    enemy.y += 18; // Drop down one grid tier upon boundary walls hit
+                    if (enemy.y >= fighterShip.y - 10) runTerminationSequence();
+                });
+            }
+
+            // Projectile laser collision matching verification
+            laserProjectiles.forEach((laser, lIdx) => {
+                enemySquadron.forEach((enemy, eIdx) => {
+                    if (evaluateBoundingIntersections(laser, enemy)) {
+                        spawnDetonationExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, "#ff4444");
+                        enemySquadron.splice(eIdx, 1);
+                        laserProjectiles.splice(lIdx, 1);
+                        
+                        gameScore += 25;
+                        scoreValue.innerHTML = "Score: " + gameScore;
+
+                        // Replenish new wave reinforcements clean if entire grid is eliminated
+                        if (enemySquadron.length === 0) populateAlienSquadron();
+                    }
+                });
+            });
+        }
+
+        function evaluateBoundingIntersections(boxA, boxB) {
+            return boxA.x < boxB.x + boxB.width &&
+                   boxA.x + boxA.width > boxB.x &&
+                   boxA.y < boxB.y + boxB.height &&
+                   boxA.y + boxA.height > boxB.y;
+        }
+
+        function renderActiveCanvasElements() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Re-render Background Star Field
+            ctx.fillStyle = "#ffffff";
+            scrollingStars.forEach(star => {
+                ctx.fillRect(star.x, star.y, star.radius, star.radius);
+            });
+
+            // Re-render Active Particles
+            blastParticles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.transparency;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // Re-render Active Lasers
+            ctx.fillStyle = "#00f2fe";
+            laserProjectiles.forEach(laser => {
+                ctx.fillRect(laser.x, laser.y, laser.width, laser.height);
+            });
+
+            // Re-render Alien Squads
+            enemySquadron.forEach(enemy => {
+                drawInvaderVectorBox(enemy.x, enemy.y, enemy.width, enemy.height);
+            });
+
+            // Re-render Fighter Ship
+            drawPlayerVectorShip(fighterShip.x, fighterShip.y);
+        }
+
+        function drawPlayerVectorShip(x, y) {
+            ctx.save();
+            ctx.fillStyle = "#39ff14";
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#39ff14";
+
+            ctx.beginPath();
+            ctx.moveTo(x + fighterShip.width / 2, y);
+            ctx.lineTo(x, y + fighterShip.height);
+            ctx.lineTo(x + fighterShip.width, y + fighterShip.height);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = "#050512";
+            ctx.fillRect(x + fighterShip.width / 2 - 3, y + 16, 6, 8);
+            ctx.restore();
+        }
+
+        function drawInvaderVectorBox(x, y, w, h) {
+            ctx.save();
+            ctx.fillStyle = "#ff4444";
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = "#ff4444";
+            
+            ctx.fillRect(x + 4, y, w - 8, h);
+            ctx.fillRect(x, y + 5, w, h - 10);
+            
+            // Bottom alien wing extensions
+            ctx.fillRect(x + 2, y + h - 3, 5, 3);
+            ctx.fillRect(x + w - 7, y + h - 3, 5, 3);
+            
+            ctx.fillStyle = "#050512";
+            ctx.fillRect(x + 7, y + 5, 3, 4);
+            ctx.fillRect(x + w - 10, y + 5, 3, 4);
+            ctx.restore();
+        }
+
+        function runTerminationSequence() {
+            running = false;
+            cancelAnimationFrame(frameEngineId);
+
+            ctx.fillStyle = "rgba(5, 5, 18, 0.92)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.font = "900 34px 'Segoe UI'";
+            ctx.fillStyle = "#ff4444";
+            ctx.textAlign = "center";
+            ctx.fillText("MISSION FAILED", canvas.width / 2, canvas.height / 2 - 15);
+
+            ctx.font = "600 16px 'Segoe UI'";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(`Final Cleared Score: ${gameScore}`, canvas.width / 2, canvas.height / 2 + 20);
+            ctx.fillText("Tap 'Deploy Fighter' to launch again", canvas.width / 2, canvas.height / 2 + 50);
+        }
+    </script>
+</body>
+</html>

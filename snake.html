@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Snake</title>
+    <style>
+        body { background: #03030c; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+        canvas { border: 3px solid #39ff14; background: #050515; box-shadow: 0 0 20px rgba(57, 255, 20, 0.2); }
+        .hud { margin-bottom: 10px; font-size: 20px; font-weight: bold; color: #39ff14; }
+        .btn { background: #39ff14; color: #03030c; padding: 10px 25px; border-radius: 20px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; margin-top: 15px; }
+        .return-link { margin-top: 15px; color: #8394a6; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="hud" id="score">Score: 0</div>
+    <canvas id="game" width="400" height="400"></canvas>
+    <button class="btn" onclick="startGame()">Start Game</button>
+    <a href="index.html" class="return-link">← Return to Hub</a>
+
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        
+        let snake, food, dx, dy, score, gameRunning;
+
+        function startGame() {
+            snake = [{x: 200, y: 200}, {x: 180, y: 200}, {x: 160, y: 200}];
+            food = {x: 100, y: 100};
+            dx = 20; dy = 0;
+            score = 0;
+            gameRunning = true;
+            document.getElementById("score").innerText = "Score: 0";
+            draw();
+        }
+
+        function draw() {
+            if (!gameRunning) return;
+
+            ctx.fillStyle = "#050515"; 
+            ctx.fillRect(0, 0, 400, 400);
+
+            // Draw Apple (Red circle + Brown stem)
+            ctx.fillStyle = "#ff4444";
+            ctx.beginPath();
+            ctx.arc(food.x + 10, food.y + 10, 8, 0, Math.PI * 2);
+            ctx.fill();
+            // Apple Stem
+            ctx.fillStyle = "#8b4513";
+            ctx.fillRect(food.x + 9, food.y + 2, 2, 4);
+
+            // Draw Snake
+            snake.forEach((part, index) => {
+                ctx.fillStyle = index === 0 ? "#2ecc71" : "#39ff14"; 
+                ctx.beginPath();
+                ctx.arc(part.x + 10, part.y + 10, 9, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw Eyes on the head
+                if (index === 0) {
+                    ctx.fillStyle = "white";
+                    ctx.beginPath();
+                    // Positioning eyes based on direction
+                    let eyeOffsetX = dx > 0 ? 5 : (dx < 0 ? -5 : 0);
+                    let eyeOffsetY = dy > 0 ? 5 : (dy < 0 ? -5 : 0);
+                    ctx.arc(part.x + 10 + eyeOffsetX, part.y + 10 + eyeOffsetY, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            // Move Snake
+            let head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            snake.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                document.getElementById("score").innerText = "Score: " + score;
+                food = {x: Math.floor(Math.random()*20)*20, y: Math.floor(Math.random()*20)*20};
+            } else {
+                snake.pop();
+            }
+            
+            // Collision detection
+            if (head.x < 0 || head.x >= 400 || head.y < 0 || head.y >= 400 || 
+                snake.slice(1).some(p => p.x === head.x && p.y === head.y)) {
+                gameOver();
+            } else {
+                setTimeout(draw, 100);
+            }
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            ctx.fillStyle = "white";
+            ctx.font = "40px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("GAME OVER", 200, 200);
+        }
+
+        window.addEventListener("keydown", e => {
+            if(e.key === "ArrowUp" && dy === 0) { dx = 0; dy = -20; }
+            if(e.key === "ArrowDown" && dy === 0) { dx = 0; dy = 20; }
+            if(e.key === "ArrowLeft" && dx === 0) { dx = -20; dy = 0; }
+            if(e.key === "ArrowRight" && dx === 0) { dx = 20; dy = 0; }
+        });
+    </script>
+</body>
+</html>
